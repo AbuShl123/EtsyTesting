@@ -13,47 +13,92 @@ import java.util.concurrent.TimeUnit;
 public class Jutsu {
     WebDriver webDriver;
 
-    @BeforeClass
-    public void setUp() {
-        webDriver = WebDriverFactory.getDriver("chrome");
-        webDriver.manage().timeouts().implicitlyWait(10, TimeUnit.SECONDS);
-    }
-
-    @AfterClass
-    public void tearDown() {
-
-    }
-
     @BeforeMethod
     public void beforeMethod() {
+        webDriver = WebDriverFactory.getDriver("chrome");
+        webDriver.manage().window().maximize();
+        webDriver.manage().timeouts().implicitlyWait(10, TimeUnit.SECONDS);
         webDriver.navigate().to("https://jut.su");
     }
 
     @AfterMethod
     public void afterMethod() {
-
+        webDriver.quit();
     }
 
 
 
     @Test
     public void test1() {
+        /*
+        Steps:
+            1.	User is on Home Page
+            2.	User clicks on “Войти на Сайт” button
+            3.	User Email
+            4.	User enters Password
+            5.	User clicks on “Войти” Button
+         */
+        // step 2:
         WebElement logIn = webDriver.findElement(By.xpath("//a[@title='Форма авторизации']"));
-        Assert.assertTrue(logIn.isDisplayed());
-
         logIn.click();
 
+        // step 3:
         WebElement emailInput = webDriver.findElement(By.cssSelector("#login_input1"));
-        Assert.assertTrue(emailInput.isDisplayed());
-
         emailInput.sendKeys("shoalievabubakr@gmail.com");
 
+        // step 4:
         WebElement passwordInput = webDriver.findElement(By.cssSelector("#login_input2"));
-        passwordInput.sendKeys("");
+        passwordInput.sendKeys(Secret.myPassword);
+
+        // step 5:
+        WebElement submitButton = webDriver.findElement(By.cssSelector("#login_submit"));
+        submitButton.click();
+
+        // --- checking that user really logged in ---
+        WebElement profile = webDriver.findElement(By.linkText("Профиль"));
+        WebElement messages = webDriver.findElement(By.linkText("Сообщения"));
+        WebElement logout = webDriver.findElement(By.linkText("[Выйти]"));
+
+        Assert.assertTrue(profile.isDisplayed());
+        Assert.assertTrue(messages.isDisplayed());
+        Assert.assertTrue(logout.isDisplayed());
     }
 
     @Test
-    public void test2() throws InterruptedException {
+    public void test2() {
+        /*
+        Steps:
+            1.	User is on Hope Page
+            2.	User clicks on “Войти на Сайт” button
+            3.	User enters invalid Email
+            4.	User enters invalid Password
+            5.	User clicks on “Войти” button
+         */
+        WebElement logIn = webDriver.findElement(By.xpath("//a[@title='Форма авторизации']"));
+        logIn.click();
+
+        // step 3:
+        WebElement emailInput = webDriver.findElement(By.cssSelector("#login_input1"));
+        emailInput.sendKeys("sdkfjhfsdfa");
+
+        // step 4:
+        WebElement passwordInput = webDriver.findElement(By.cssSelector("#login_input2"));
+        passwordInput.sendKeys("sdfsdfk@gmail.com");
+
+        // step 5:
+        WebElement submitButton = webDriver.findElement(By.cssSelector("#login_submit"));
+        submitButton.click();
+
+        // --- Checking that user gets error message and “Войти на Сайт” button remains unchanged ---
+        WebElement errorMessage = webDriver.findElement(By.xpath("//div[@class='clear berrors'] "));
+        Assert.assertTrue(errorMessage.isDisplayed());
+
+        logIn = webDriver.findElement(By.xpath("//a[@title='Форма авторизации']"));
+        Assert.assertTrue(logIn.isDisplayed());
+    }
+
+    // this method is just practicing.
+    public void registration() throws InterruptedException {
         WebElement logIn = webDriver.findElement(By.xpath("//a[@title='Форма авторизации']"));
         Assert.assertTrue(logIn.isDisplayed());
         logIn.click();
