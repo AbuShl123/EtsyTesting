@@ -17,7 +17,7 @@ public class Etsy {
     @BeforeMethod
     public void setUp() {
         webDriver = WebDriverFactory.getDriver("chrome");
-        webDriver.manage().timeouts().implicitlyWait(5, TimeUnit.SECONDS);
+        webDriver.manage().timeouts().implicitlyWait(2, TimeUnit.SECONDS);
         webDriver.manage().window().maximize();
         webDriver.navigate().to("https://etsy.com");
     }
@@ -51,59 +51,78 @@ public class Etsy {
         Assert.assertTrue(freeShippingLabels.size() >= saleBlocks.size()*0.80); // verifying that "free shipping" products are 80% of all total goods in the page;
     }
 
+    /*
+    java.lang.AssertionError: 'Льняные шорты WENDYЭластичная талия ЛетоОдежда ручной работы для женщин' != 'Льняные шорты WENDY '
+    Expected :true
+    Actual   :false
+     */
 
     @Test
     public void test2() {
-        //------- Choosing clothing section
+        // Choosing 'clothing' section
         WebElement clothing = webDriver.findElement(By.cssSelector("a[href$='256485377']")); // select clothing
         clothing.click();
 
-        Map<String, String> allProducts = new HashMap<>(); // there we will store chosen clothes.
+        Map<String, Map<String, String>> allProducts = new HashMap<>(); // there we will store chosen clothes.
 
-        //------- setting 5 products and adding them to the cart
+        // Setting 5 products and adding them to the cart
         for (int g = 0; g < 5; g++) {
-            //------- clicking to random product
+            //clicking to random product
             Random rd = new Random();
             int index = rd.nextInt(64)+1; // gives random number from 1-64
             WebElement product = webDriver.findElement(By.xpath("//ul[@class='wt-grid wt-grid--block wt-pl-xs-0 tab-reorder-container']/li[" + index + ']')); // find random dress from the page
-            product.click(); // this opens new tap
+            try {
+                product.click(); // this opens new tab
+            } catch (ElementClickInterceptedException e) {
+                JavascriptExecutor js = (JavascriptExecutor) webDriver;
+                js.executeScript("arguments[0].click()", product); // this opens new tab
+            }
 
             ArrayList<String> taps = new ArrayList<>(webDriver.getWindowHandles());
-            webDriver.switchTo().window(taps.get(1)); // switch to new tap
+            webDriver.switchTo().window(taps.get(1));
 
-            // verifying product name
-            WebElement productTitle = webDriver.findElement(By.xpath("(//h1)[1]")); // find product's name
-            String productName = productTitle.getText();
-            String partialTitle = "";
-            String[] arr = webDriver.getTitle().split(" "); // getting each word from title
-            for (int i = 0; i < 3; i++) {
-                partialTitle += arr[i] + " "; // getting first 3 words from title
+            // VERIFY that title is valid -> It should start with first the several words of the selected product's name:
+                // 1. Find product's name
+            String productName = webDriver.findElement(By.xpath("(//h1)[1]")).getText().trim(); // removing all redundant spaces
+                // 2. Find current Title of the page and get first several words from this title
+            String currentTitle = webDriver.getTitle().trim().replace("  ", ""); // removing all redundant spaces
+            String[] WordsFromTitle = currentTitle.split(" "); // getting each word from title
+            int a = productName.split(" ").length;
+            a = Math.min(a, 4);
+            String partialTitle = ""; // <- there we will store first several words of the title
+            for (int i = 0; i < a; i++) {
+                partialTitle += WordsFromTitle[i] + " "; // getting first (int a) words from title (we will trim later)
             }
-            productName = productName.replaceAll("\\p{Punct}", ""); // removing all punctuations
-            partialTitle = partialTitle.replaceAll("\\p{Punct}", ""); // removing all punctuations
-            Assert.assertTrue(productName.startsWith(partialTitle)); // verifying that the title starts with the same words as the product name
 
-            allProducts.put(productName, null); // add this product to map
+                // 3. Removing all punctuations
+            String productNameClone  = productName.replaceAll("\\p{Punct}", "").replace("  ", ""); // removing all punctuations and redundant spaces
+            String partialTitleClone = partialTitle.trim().replaceAll("\\p{Punct}", "").replace("  ", ""); // trim, punctuations, spaces
+                // 4. Assertion
+            Assert.assertTrue(productNameClone.startsWith(partialTitleClone), "'" + productNameClone + "' != '" + partialTitleClone + "'");
+
+            allProducts.put(productName, null); // now, when title is verified -> add this product to the map
+
 
             //------- selecting properties
             // checking if there are any parameters to select:
             List<WebElement> variations = webDriver.findElements(By.xpath("//div[@data-selector='listing-page-variations']/*"));
-            ArrayList<String> props = new ArrayList<>(); // there we will store selected info about product
+            Map<String, String> props = new HashMap<>(); // there we will store selected info about products
 
             for (int i = 0; i < variations.size(); i++) { // if they ARE parameters (which means that variations' size is more than 0) -> select something
                 while (true) {
                     try {
-                        Select variationsSelect = new Select(webDriver.findElement(By.cssSelector("select#variation-selector-" + i)));
+                        WebElement select = webDriver.findElement(By.cssSelector("select#variation-selector-" + i));
+                        Select variationsSelect = new Select(select);
                         List<WebElement> options = variationsSelect.getOptions();
                         String defaultOption = options.get(0).getText();
                         do {
                             index = rd.nextInt(options.size());
                             variationsSelect.selectByIndex(index); // selecting random option
-                        } while (defaultOption.equals(variationsSelect.getFirstSelectedOption().getText()));
+                        } while (defaultOption.equals(variationsSelect.getFirstSelectedOption().getText())); // if the selected option equals to default one --> reselect
                         WebElement variationType = webDriver.findElement(By.xpath("//select[@id='variation-selector-" + i + "']/../preceding-sibling::label")); // searching for variation name
                         String name = variationType.getText();
                         String attribute = variationsSelect.getFirstSelectedOption().getText();
-                        props.add(name + "===" + attribute); // storing the information in the array
+                        props.put(name, attribute); // storing the information in the array
                         break;
                     } catch (StaleElementReferenceException ignored) {}
                 }
@@ -114,11 +133,12 @@ public class Etsy {
             try { // <- we need to check if there is a personalization block below the parameters. It there is -> sendKeys since otherwise it may give an error message
                 WebElement personalization = webDriver.findElement(By.xpath("//textarea[@id='listing-page-personalization-textarea']"));
                 personalizationInfo = "Not too big, the smaller the better.";
+                personalization.sendKeys(personalizationInfo);
             } catch (Exception e) {
                 personalizationInfo = "No personalization";
             }
 
-            allProducts.put(productName, props.toString() + "===" + personalizationInfo);
+            allProducts.put(productName, props);
 
             //------- Adding to the cart
             WebElement addToCart = webDriver.findElement(By.xpath("//div[@data-buy-box]/*[last()]"));
@@ -127,15 +147,39 @@ public class Etsy {
             //------- return back to the main page and closing current tab
             try {
                 WebElement continueShopping = webDriver.findElement(By.xpath("//button[@class='wt-btn wt-btn--secondary']"));
+                continueShopping.click();
             } catch (Exception ignored) {}
 
             webDriver.close();
             webDriver.switchTo().window(taps.get(0));
         }
 
-        WebElement cartIcon = webDriver.findElement(By.xpath("(//a[@aria-label])[1]"));
+        System.out.println("=".repeat(20));
+        for (Map.Entry<String, Map<String, String>> entry : allProducts.entrySet()) {
+            System.out.println(entry.getKey() + "~~" + entry.getValue());
+        }
+        System.out.println("=".repeat(20));
+
+        WebElement cartIcon = webDriver.findElement(By.xpath("(//a[@aria-label])[1]")); // clicking to Cart icon
         cartIcon.click();
 
-
+        List<WebElement> names = webDriver.findElements(By.xpath("//a[@data-title]")); // getting all product names
+        Assert.assertEquals(names.size(), 5);
+        for (int j = 0; j < names.size(); j++) {
+            String titleOfProduct = names.get(j).getAttribute("data-title");
+            if (!allProducts.containsKey(titleOfProduct)) { // if we don't such a product in the map --> failed
+                Assert.fail();
+            }
+            String x = "(//a[@data-title])["+j+"]/../..//ul/li"; // now we will go through all properties
+            List<WebElement> props = webDriver.findElements(By.xpath(x)); // properties are here
+            for (int i = 1; i <= props.size()-2; i++) { // there maybe more than 1 property (ex: size, color)
+                WebElement prop = webDriver.findElement(By.xpath(x + "[" + i + "]/span"));
+                String propName = prop.getText();
+                System.out.println("str: " + propName);
+                String expected = allProducts.get(names.get(j).getAttribute("data-title")).get(propName); // 'color'='red' e.g -> ..get(propName) = 'red'
+                System.out.println("value: " + expected);
+                //Assert.assertEquals("", expected);
+            }
+        }
     }
 }
