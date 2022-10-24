@@ -6,6 +6,7 @@ import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+import utilities.TestMethods;
 import utilities.WebDriverFactory;
 
 import java.util.*;
@@ -71,9 +72,11 @@ public class Etsy {
             Random rd = new Random();
             int index = rd.nextInt(64)+1; // gives random number from 1-64
             WebElement product = webDriver.findElement(By.xpath("//ul[@class='wt-grid wt-grid--block wt-pl-xs-0 tab-reorder-container']/li[" + index + ']')); // find random dress from the page
+            System.out.println("index: " + index);
             try {
                 product.click(); // this opens new tab
             } catch (ElementClickInterceptedException e) {
+                System.out.println("EXCEPTION GET");
                 JavascriptExecutor js = (JavascriptExecutor) webDriver;
                 js.executeScript("arguments[0].click()", product); // this opens new tab
             }
@@ -83,25 +86,15 @@ public class Etsy {
 
             // VERIFY that title is valid -> It should start with first the several words of the selected product's name:
                 // 1. Find product's name
-            String productName = webDriver.findElement(By.xpath("(//h1)[1]")).getText().trim(); // removing all redundant spaces
-                // 2. Find current Title of the page and get first several words from this title
-            String currentTitle = webDriver.getTitle().trim().replace("  ", ""); // removing all redundant spaces
-            String[] WordsFromTitle = currentTitle.split(" "); // getting each word from title
-            int a = productName.split(" ").length;
-            a = Math.min(a, 4);
-            String partialTitle = ""; // <- there we will store first several words of the title
-            for (int i = 0; i < a; i++) {
-                partialTitle += WordsFromTitle[i] + " "; // getting first (int a) words from title (we will trim later)
+            String productName = webDriver.findElement(By.xpath("(//h1)[1]")).getText().trim();
+            if (allProducts.containsKey(productName)) {
+                g--; continue; // if there is a
             }
+                // 2. Find current Title of the page and get first several words from this title
+            String currentTitle = webDriver.getTitle().trim();
+            Assert.assertTrue(TestMethods.ignoreStarting(currentTitle, productName));
 
-                // 3. Removing all punctuations
-            String productNameClone  = productName.replaceAll("\\p{Punct}", "").replace("  ", ""); // removing all punctuations and redundant spaces
-            String partialTitleClone = partialTitle.trim().replaceAll("\\p{Punct}", "").replace("  ", ""); // trim, punctuations, spaces
-                // 4. Assertion
-            Assert.assertTrue(productNameClone.startsWith(partialTitleClone), "'" + productNameClone + "' != '" + partialTitleClone + "'");
-
-            allProducts.put(productName, null); // now, when title is verified -> add this product to the map
-
+            allProducts.put(productName, null);
 
             //------- selecting properties
             // checking if there are any parameters to select:
@@ -164,21 +157,29 @@ public class Etsy {
         cartIcon.click();
 
         List<WebElement> names = webDriver.findElements(By.xpath("//a[@data-title]")); // getting all product names
+        // Verify that we have 5 products in the cart
         Assert.assertEquals(names.size(), 5);
-        for (int j = 0; j < names.size(); j++) {
+
+        // Verify that all the properties products are as expected
+        for (int j = 0; j < 5; j++) {
             String titleOfProduct = names.get(j).getAttribute("data-title");
             if (!allProducts.containsKey(titleOfProduct)) { // if we don't such a product in the map --> failed
                 Assert.fail();
             }
-            String x = "(//a[@data-title])["+j+"]/../..//ul/li"; // now we will go through all properties
+            String x = "(//a[@data-title])["+j+"]/../.. // li[@class='wt-text-black wt-text-caption wt-pb-xs-1']";// now we will go through all properties
             List<WebElement> props = webDriver.findElements(By.xpath(x)); // properties are here
-            for (int i = 1; i <= props.size()-2; i++) { // there maybe more than 1 property (ex: size, color)
+            for (int i = 1; i <= props.size(); i++) { // there maybe more than 1 property (ex: size, color)
                 WebElement prop = webDriver.findElement(By.xpath(x + "[" + i + "]/span"));
-                String propName = prop.getText();
-                System.out.println("str: " + propName);
-                String expected = allProducts.get(names.get(j).getAttribute("data-title")).get(propName); // 'color'='red' e.g -> ..get(propName) = 'red'
-                System.out.println("value: " + expected);
-                //Assert.assertEquals("", expected);
+                String[] keyAndValue = prop.getText().split(": ");
+                String propName = keyAndValue[0];
+                String actualValue = keyAndValue[1];
+                System.out.println("prop name = '" + propName + "'");
+                System.out.println("prop value = '" + actualValue + "'");
+                System.out.println(titleOfProduct);
+                System.out.println(allProducts.get(titleOfProduct));
+                String expectedValue = allProducts.get(titleOfProduct).get(propName); // 'color'='red' e.g -> ..get(propName) = 'red'
+                System.out.println("value: " + expectedValue);
+                //Assert.assertEquals("", expectedValue);
             }
         }
     }
