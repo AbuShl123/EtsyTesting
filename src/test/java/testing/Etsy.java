@@ -13,6 +13,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class Etsy {
+    // that's a big one
     WebDriver webDriver;
 
     @BeforeMethod
